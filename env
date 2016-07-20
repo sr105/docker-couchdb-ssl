@@ -1,0 +1,7 @@
+# Unlike in the Dockerfile, do NOT quote the strings here. Spaces are ok.
+# https://docs.docker.com/engine/reference/commandline/run/#set-environment-variables-e-env-env-file
+COUCHDB_USER=couch_admin
+COUCHDB_PASSWORD=2Dj@$V!y
+ACRALYZER_USER=neocast_reporter
+ACRALYZER_PASSWORD=7JxZ&t1sFqtRg5tpWvGPxD7vPHGTyV
+APP_NAME=neocast

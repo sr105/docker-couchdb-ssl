@@ -1,0 +1,17 @@
+# Add an updated readme
+
+# TODO: Add member roles: set ["reader"] in the Members Roles
+# https://github.com/ACRA/acralyzer/wiki/setup#secure-access-to-your-storage-database
+
+# TODO: review security features
+# https://wiki.apache.org/couchdb/Security_Features_Overview
+
+# TODO: investigate couchdb/erlang SSL CIPHER list
+# specifically, ACRA on Android 4.4.3 will not connect
+
+# TODO: automatically use Let's Encrypt for SSL certificates
+# www.automationlogic.com/using-lets-encrypt-and-docker-for-automatic-ssl/
+
+# TODO: investigate using couchdb with nginx as the SSL tunnel
+# https://github.com/klaemo/docker-couchdb-ssl
+

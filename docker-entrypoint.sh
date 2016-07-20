@@ -21,7 +21,6 @@ check_for_admin_user() {
 
 	if [ "$COUCHDB_USER" ] && [ "$COUCHDB_PASSWORD" ]; then
 		# Create admin
-		echo "USER USER USER" >&2
 		DOCKER_INI=/usr/local/etc/couchdb/local.d/docker.ini
 		printf "[admins]\n$COUCHDB_USER = $COUCHDB_PASSWORD\n" >> ${DOCKER_INI}
 		return
@@ -99,11 +98,85 @@ fix_ssl_certificates() {
 	cd -
 }
 
+couchdb_start() {
+	couchdb &
+	# use a global here because "set -e" will consider
+	# "return $couchdb_pid" as a script error
+	couchdb_pid=$!
+	while ! nc -z localhost 5984; do
+	    echo "Waiting for couchdb to start..." >&2
+	    sleep 1
+	done
+}
+
+couchdb_stop() {
+	kill $couchdb_pid
+	while [ -d /proc/$couchdb_pid ]; do
+		echo "Waiting for couchdb to stop..." >&2
+		sleep 1
+	done
+}
+
+# https://wiki.apache.org/couchdb/Replication
+couchdb_replicate() {
+	local AUTH="${COUCHDB_USER}:${COUCHDB_PASSWORD}"
+	local JSON_TYPE="Content-Type: application/json"
+	local URL=localhost:5984/_replicate
+
+	local SOURCE="$1"
+	local DESTINATION="$2"
+	cat <<-EOF | curl -sX POST -u "${AUTH}" -H "${JSON_TYPE}" -d @- $URL
+		{
+		    "source":"http://get.acralyzer.com/${SOURCE}",
+		    "target":"${DESTINATION}",
+		    "create_target":true
+		}
+		EOF
+}
+
+# https://github.com/ACRA/acralyzer/wiki/Create-users-before-CouchDB-1.2
+acralyzer_create_reporter() {
+	local SALT=$(openssl rand 16 | openssl md5)
+	local PASSWORD_SHA=$(echo -n "${ACRALYZER_PASSWORD}${SALT}" | openssl sha1)
+
+	local AUTH="${COUCHDB_USER}:${COUCHDB_PASSWORD}"
+	local JSON_TYPE="Content-Type: application/json"
+	local URL=localhost:5984/_users
+	cat <<-EOF | curl -sX POST -u "${AUTH}" -H "${JSON_TYPE}" -d @- "$URL"
+		{
+		    "_id": "org.couchdb.user:${ACRALYZER_USER}",
+		    "name": "${ACRALYZER_USER}",
+		    "type": "user",
+		    "roles": ["reporter", "reader"],
+		    "password_sha": "${PASSWORD_SHA}",
+		    "salt": "${SALT}"
+		}
+		EOF
+}
+
+acralyzer_install() {
+	if [ -e /.acralyzer_installed ]; then
+		return
+	fi
+
+	couchdb_start
+	couchdb_replicate distrib-acra-storage acra-${APP_NAME}
+	couchdb_replicate distrib-acralyzer acralyzer
+	acralyzer_create_reporter
+	couchdb_stop
+	touch /.acralyzer_installed
+}
+
 if [ "$1" = 'couchdb' ]; then
 	check_for_admin_user
+	# this must be after check_for_admin_user because of
+	# "require_valid_user = true" but before fix_permissions
+	# because of how we run couchdb
+	acralyzer_install
 	fix_permissions
 	# do this after fix_permissions because it uses tighter permissions
 	fix_ssl_certificates
+
 	exec gosu couchdb "$@"
 fi
 
